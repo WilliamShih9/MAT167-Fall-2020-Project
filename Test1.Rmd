@@ -18,7 +18,7 @@ $\beta_{6}$ = weekday
 $\beta_{7}$ = 
 
 
-```{r setup, include=FALSE}
+```{r}
 library(tidyverse)
 
 
