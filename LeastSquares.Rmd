@@ -1,0 +1,519 @@
+---
+title: "LeastSquares"
+output:
+  pdf_document:
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+
+#Sys.setenv(PATH = paste("C:/RBuildtools/3.5/bin", Sys.getenv("PATH"), sep=";"))
+#Sys.setenv(BINPREF = "C:/RBuildtools/3.5/mingw_$(WIN)/bin/") 
+knitr::opts_chunk$set(echo = FALSE)
+library(pracma)
+library(tidyverse)
+library(scales)
+library(microbenchmark)
+library(Rcpp)
+library(RcppArmadillo)
+dataset = read.csv("hour.csv")
+
+
+# There were two files from this dataset. There is the 'hour.csv' and 'day.csv'.
+# This converts the 'hour.csv' to 'day.csv' file (summarizes the data from each hour to each day)
+convert_hour_to_day <- function(hour){
+  require(tidyverse)
+  day = hour %>%
+    group_by(dteday, season, yr, mnth, holiday, weekday, workingday) %>%
+    summarize(weathersit = as.integer(round(mean(weathersit))),
+              temp = mean(temp),
+              atemp = mean(atemp),
+              hum = mean(hum),
+              windspeed = mean(windspeed),
+              casual = sum(casual),
+              registered = sum(registered),
+              cnt = sum(cnt))
+  day = tibble::rowid_to_column(day, "instant")
+  return(day)
+}
+
+# Helper function for plot_by_hour for quantiles
+# https://www.tidyverse.org/blog/2020/03/dplyr-1-0-0-summarise/
+quibble <- function(x, q = c(0.25, 0.5, 0.75)) {
+  tibble(x = quantile(x, q), q = q)
+}
+ 
+# Boxplot (lower end is 10th, lower end of box is 25th, middle line is 50th, upper end of box is 75th, upper end is 90th)
+# Hour = This is the 'hour.csv' dataset
+# Variable = This is the number of users. Either 'registered', 'casual', or 'cnt' (sum of registered or casual).
+# Quantiles = Optional. Function needs exactly 5 values 
+plot_by_hour <- function(hour, variable, quantiles = c(0.10, 0.25, 0.5, 0.75, 0.90)){
+  require(tidyverse)
+  require(scales)
+  data = hour %>%
+    group_by(hr) %>%
+    summarise(x = quibble(get(variable), quantiles))
+  data = tibble(hr = as.character(data$hr), x = data$x$x, q = data$x$q)
+  quant_title = paste(ordinal(quantiles*100), collapse = ", ") 
+  quant_title = paste0(quant_title, " percentile ", variable, " of each hour of day")
+  plo = ggplot(data, aes(x = reorder(hr, sort(as.numeric(hr))), y = x)) + 
+    theme_bw() +
+    geom_boxplot(aes(fill = reorder(hr, sort(as.numeric(hr))))) +
+    xlab("Hour of Day") +
+    ylab(variable) +
+    theme(legend.position = "none") +
+    ggtitle(quant_title) 
+  return(plo)
+}
+
+# Day = This is the 'day.csv' dataset
+# Variables = These are the variables plotted. The variable plotted should be on the same scale
+plot_by_day <- function(day, variables){
+  require(tidyverse)
+  require(reshape2)
+  frame = data.frame(
+    day = as.Date(day$dteday)
+  )
+  for (i in 1:length(variables)){
+    frame = cbind(frame, day[variables[i]])
+  }
+  title = paste(variables, collapse = ", ")
+  title = paste0("Date and Value of ", title)
+  frame_gg <- melt(frame, id="day")
+  plo = ggplot(frame_gg, aes(x = day, y=value, color = variable)) +
+    geom_line()+
+    xlab("Date") +
+    scale_x_date(date_breaks = "3 month", date_labels = "%m-%Y") +
+    ylab("Value") +
+    theme_bw() +
+    ggtitle(title)
+  return(plo)
+}
+
+
+# Finds the design matrix. No conversion to dummy variables allowed
+# Hour = This is the 'hour.csv' dataset
+# x = This is the independent variable(s)
+# degrees = The degrees of the polynomials for the independent variable(s): Must be 1 or higher
+design_matrix <- function(hour, x, degrees = rep(1, length(x))){
+  mat = matrix(, nrow = nrow(hour), ncol = sum(degrees)+1)
+  name = c("(Intercept)")
+  mat[,1] = 1
+  k = 2
+  for (i in 1:length(degrees)){
+    data = hour[[x[i]]]
+    for (j in 1:degrees[i]){
+      mat[,k] = data^j
+      if (j == 1){
+         name = append(name, x[i])
+      }
+      else{
+         name = append(name, paste0(x[i], "^", j))
+      }
+      k = k + 1
+    }
+  }
+  colnames(mat) = name
+  return(mat)
+}
+
+# C++ version of the design_matrix function
+Rcpp::cppFunction('
+NumericMatrix design_matrix_Cpp(List hour, std::vector<std::string> x, IntegerVector degrees){
+  int total = 1;
+  for (int i = 0; i < degrees.size(); i++){
+    total = total + degrees[i];
+  }
+  CharacterVector name(total);
+  name[0] = "(Intercept)";
+  NumericVector v = hour[0];
+  NumericMatrix mat(v.length(), total);
+  std::fill(mat.begin(), mat.begin()+v.length(), 1);
+  int k = 1;
+  for (int i = 0; i < degrees.size(); i++){
+    NumericVector v = hour[x[i]];
+    for (int j = 1; j <= degrees[i]; j++){
+      mat(_,k) = pow(v, j);
+      if (j == 1){
+        name[k] = x[i];
+      }
+      else{
+        name[k] = x[i] + "^" + std::to_string(j);
+      }
+      k++;
+    }
+    
+  }
+  colnames(mat) = name;
+  return(mat);
+}
+')
+
+#Finds x for Ax = b using normal equations
+normal_equations <- function(A, b){
+  x = solve(t(A) %*% A) %*% t(A) %*% b
+  return(x)
+}
+
+# C++ version for normal_equations
+Rcpp::cppFunction('
+  arma::vec normal_equations_Cpp(arma::mat A, arma::vec b){
+    arma::vec coeffs = arma::solve(A, b);
+    return(coeffs);
+  }
+', depends='RcppArmadillo')
+
+# C++ version for qr.solve
+Rcpp::cppFunction('
+  arma::vec qr_solve_Cpp(arma::mat A, arma::vec b){
+    arma::mat Q;
+    arma::mat R;
+    arma::qr_econ(Q, R, A);
+    arma::vec x = inv(R)*trans(Q)*b;
+    return(x);
+  }
+', depends = 'RcppArmadillo')
+
+# Finds x for Ax=b using SVD
+svd_solve <- function(A, b){
+  x = svd(A)
+  x = as.numeric(x$v %*% (t(x$u) %*% b / x$d))
+  names(x) = colnames(A)
+  return(x)
+}
+
+# C++ version of svd_solve
+Rcpp::cppFunction('
+  arma::vec svd_solve_Cpp(arma::mat A, arma::vec b){
+    arma::mat U;
+    arma::vec s;
+    arma::mat V;
+    arma::svd_econ(U, s, V, A);
+    arma::vec x = V * (trans(U)*b/s);
+    return(x);
+  }
+', depends = 'RcppArmadillo')
+
+
+# Convert condition numbers to LaTeX output
+# Digits can be from 0 to 7 inclusive
+scientific_to_latex <- function(x, digits = 3){
+  x = scientific(as.numeric(x), digits = digits)
+  x = paste0("$", substr(x, 1, 1+digits), " \\times 10^{", as.numeric(substr(x, stringr::str_length(x)-2, stringr::str_length(x))), "}$")
+  return(x)
+}
+```
+
+# 1. Introduction
+
+The 
+\color{blue}
+\href{https://www.archive.ics.uci.edu/ml/datasets/Bike+Sharing+Dataset}{dataset}
+\color{black}
+for this project is the "Bike Sharing Dataset Data Set" found in the UCI Machine Learning Repository. The dataset contains hourly count of rental bikes for all of 2011 and 2012 (January 1, 2011 to December 31, 2012) in the Capital Bikeshare System of Washington D.C. area (Washington-Arlington-Alexandria, DC-VA-MD-WV metropolitan area). The UCI Machine Learning Repository cites Hadi Fanaee-T from the "Laboratory of Artificial Intelligence and Decision Support (LIAAD), University of Porto" for the compilation of the data.
+
+The dataset is outdated since data is actually available up to November 2020 on Capital Bikeshare's website (as of December 18, 2020), but this limited dataset will still work for the purposes of demonstrating linear algebra on a real world dataset.
+
+There are 14 different variables that are in this dataset that are potentially of interest. Two variables are not useful and immediately thrown out: `instant` (this is simply the row number of the dataset) and `dteday` (date of the year).
+
+Denote $x_{n}$ as plausible independent variables and denote $y_{n}$ as plausible dependent variables.
+
+$x_{1}$: `season` (1: spring, 2: summer, 3: fall, 4: winter)
+
+$x_{2}$: `yr` (0: 2011, 1: 2012)
+
+$x_{3}$: `mnth` (1 to 12)
+
+$x_{4}$: `hour` (0 to 23)
+
+$x_{5}$: `holiday` (whether a holiday (0 or 1) from
+\color{blue}
+\href{https://dchrc.dc.gov/page/holiday-schedule}{this list of holidays}
+\color{black}
+)
+
+$x_{6}$: `weekday` (0 to 6)
+
+$x_{7}$: `workingday` (1 if weekday and not holiday, 0 otherwise)
+
+$x_{8}$: `temp` (0-1, normalized temperature in Celsius. Divided by 41)
+
+$x_{9}$: `atemp` (0-1, normalized "feels like" temperature in Celsius. Divided by 50)
+
+$x_{10}$: `hum` (percent humidity)
+
+$x_{11}$: `windspeed` (0-1, Normalized wind speed. Divided by 67)
+
+$y_{1}$: `casual` (count of casual users)
+
+$y_{2}$: `registered` (count of registered users)
+
+$y_{3}$: `cnt` (count of sum of casual and registered users)
+
+The following least squares regression exercise will try to predict the `casual`, `registered`, or `cnt` as a function of the independent variables.
+
+## Data Analysis
+
+Preliminary data analysis shows that the `hour` is by far the most important independent variable for explaining the variation in the dependent variables. Thus, it is important to know how exactly the `hour` variable interacts with `registered`, `casual`, and `cnt`. 
+
+Although there are three different dependent variables, 
+
+It could sense to treat `hour` as a categorical variable (treat `hour` as 23 independent variables, one for each hour minus the constant term), but in this case, we will try to fit `hour` in terms of a polynomial curve. 
+
+
+```{r, echo = FALSE, message = FALSE, fig.cap = "Boxplot of registered users for Jan 1, 2011 to December 31, 2011 for each hour of day. The low whisker represents 10th percentile, the box represents the interquartile range, the top whisker represents the 90th percentile"}
+plot_by_hour(dataset, "registered")
+```
+
+```{r, echo = FALSE, message = FALSE, fig.cap = "Boxplot of casual users for Jan 1, 2011 to December 31, 2011 for each hour of day. The low whisker represents 10th percentile, the box represents the interquartile range, the top whisker represents the 90th percentile"}
+plot_by_hour(dataset, "casual")
+```
+
+
+```{r, echo = FALSE, message = FALSE, fig.cap = "Number of casual, registered, and sum of casual and registered for all 731 days in the dataset"}
+day = convert_hour_to_day(dataset)
+plot_by_day(day, c("casual","registered","cnt"))
+```
+
+
+```{r, echo = FALSE, message = FALSE, fig.pos = "!h", fig.cap = 'Normalized temperature and "feels like" temperature for all 731 days in the datset'}
+plot_by_day(day, c("temp","atemp"))
+```
+
+\newpage
+
+# 2. Design Matrix
+
+
+```{r, message = FALSE, echo = FALSE}
+Rsq_cnt = sapply(1:15, function(x) {
+  summary(lm(dataset$cnt ~ design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,x,1)))))$r.squared
+})
+
+Rsq_casual = sapply(1:15, function(x) {
+  summary(lm(dataset$casual ~ design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,x,1)))))$r.squared
+})
+
+Rsq_registered = sapply(1:15, function(x) {
+  summary(lm(dataset$registered ~ design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,x,1)))))$r.squared
+})
+
+condition = sapply(1:15, function(x) {
+  cond(design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,x,1))))
+})
+
+frame = cbind(Rsq_cnt, Rsq_casual, Rsq_registered)
+
+hs = c("$h$",
+  "$h+h^{2}$",
+  "$h+h^{2}+h^{3}$",
+  "$h+h^{2}+\\dots+h^{4}$",
+  "$h+h^{2}+\\dots+h^{5}$",
+  "$h+h^{2}+\\dots+h^{6}$",  
+  "$h+h^{2}+\\dots+h^{7}$",  
+  "$h+h^{2}+\\dots+h^{8}$",  
+  "$h+h^{2}+\\dots+h^{9}$",  
+  "$h+h^{2}+\\dots+h^{10}$",  
+  "$h+h^{2}+\\dots+h^{11}$",  
+  "$h+h^{2}+\\dots+h^{12}$", 
+  "$h+h^{2}+\\dots+h^{13}$",  
+  "$h+h^{2}+\\dots+h^{14}$",
+  "$h+h^{2}+\\dots+h^{15}$"
+)
+rownames(frame) = hs
+
+frame[,1:3] = round(frame[,1:3], digits = 3)
+
+
+colnames(frame) = c("$R^{2}_{cnt}$", "$R^{2}_{casual}$", "$R^{2}_{registered}$")
+
+knitr::kable(frame, digits = 3, caption = "R-squared values of y", escape = FALSE)
+```
+
+
+
+```{r, message = FALSE, echo = FALSE}
+Compare = microbenchmark("design_matrix()" = {S = design_matrix(dataset, c("yr","season","hr","temp"), c(1,1,7,1))},
+                       "design_matrix_Cpp()" = {S = design_matrix_Cpp(dataset, c("yr","season","hr","temp"),
+                                                                  as.integer(c(1,1,7,1)))},
+                       "mode.matrix.lm()" = 
+                         {S = model.matrix(~yr+mnth+hr+I(hr^2)+I(hr^3)+I(hr^4)+I(hr^5)+I(hr^6)+I(hr^7)+temp,
+                                                          data = dataset)},
+                       times = 100)
+knitr::kable(summary(Compare), digits = 3, caption = "", escape = FALSE)
+
+```
+
+
+
+# 3. Normal Equation
+
+```{r, message = FALSE, echo = FALSE}
+A = design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,3,1)))
+```
+
+```{r, message = FALSE, echo = FALSE}
+b = dataset$casual
+
+result = sapply(1:15, function(x)  {
+  A = design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,x,1)))
+  x = tryCatch(expr = 
+                 {x = solve(t(A) %*% A) %*% t(A) %*% b
+                  x = max((svd_solve(A, b) - x)/svd_solve(A,b))},
+               error = function(e){
+                 str = paste0('Error, Recripocal $\\kappa(A)$: ', substr(e[[1]], 67, 999))
+                 return(str)
+               })
+  return(x)
+})
+
+column1 = scientific_to_latex(condition, 3)
+column2 = scientific_to_latex(condition^2, 3)
+column3 = scientific_to_latex(result[1:5], 3)
+column3b = scientific_to_latex(substr(result[6:15], 32, 999), 3)
+column3c = paste0(substr(result[6:15], 1, 31), column3b)
+column3d = c(column3, column3c)
+
+frame = cbind(column1, column2, column3d)
+
+colnames(frame) = c("$\\kappa(A)$", "$\\kappa(A)^{2}$", "Relative error/error message")
+
+rownames(frame) = hs
+
+knitr::kable(frame, escape = FALSE, caption = "")
+```
+
+
+
+```{r, message = FALSE, echo = FALSE}
+Compare2 = microbenchmark("normal_equations(A, b)" = {S = normal_equations(A, b)},
+                       "normal_equations_Cpp(A, b)" = {S = normal_equations_Cpp(A, b)},
+                        times = 100)
+
+knitr::kable(summary(Compare2), digits = 3, caption = "")
+```
+
+# 4. QR Decomposition
+
+```{r, message = FALSE, echo = FALSE, message = FALSE}
+
+Compare3 = microbenchmark("qr.solve(A, b)" = {S = qr.solve(A, b)},
+                       "qr_solve_Cpp(A, b)" = {S = qr_solve_Cpp(A, b)},
+                        times = 100)
+
+knitr::kable(summary(Compare3), digits = 3, caption = "")
+
+```
+
+
+
+# 5. Singular Value Decomposition
+
+```{r, message = FALSE, echo = FALSE}
+Compare4 = microbenchmark("svd_solve(A, b)" = {S = svd_solve(A, b)},
+                       "svd_solve_Cpp(A, b)" = {S = svd_solve_Cpp(A, b)},
+                        times = 100)
+
+knitr::kable(summary(Compare4), digits = 3, caption = "")
+
+```
+
+
+```{r, message = FALSE,  echo = FALSE}
+Result = microbenchmark("normal_equations(A, b)" = {S = normal_equations(A, dataset$cnt)},
+                       "normal_equations_Cpp(A, b)" = {S = normal_equations_Cpp(A, dataset$cnt)},
+                       "qr.solve(A, b)" = {S = qr.solve(A, dataset$cnt)},
+                       "qr_solve_Cpp(A, b)" = {S = qr_solve_Cpp(A, b)},
+                       "svd_solve(A, b)" = {S = svd_solve(A, dataset$cnt)},
+                       "svd_solve_Cpp(A,b)" = {S = svd_solve_Cpp(A,b)},
+                       times = 100)
+
+b = dataset$cnt
+
+knitr::kable(summary(Result), digits = 3, caption = "")
+```
+
+
+```{r, message = FALSE, echo = FALSE}
+A = design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,7,1)))
+
+Result2 = microbenchmark("qr.solve(A, b)" = {S = qr.solve(A, dataset$cnt)},
+                       "qr_solve_Cpp(A, b)" = {S = qr_solve_Cpp(A, b)},
+                       "svd_solve(A, b)" = {S = svd_solve(A, dataset$cnt)},
+                       "svd_solve_Cpp(A,b)" = {S = svd_solve_Cpp(A, b)},
+                       times = 100)
+knitr::kable(summary(Result2), digits = 3, caption = "")
+
+```
+
+# 6. Final Regression Model
+
+$y_{1} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{4}x_{4}^{3} + \beta_{5}x_{9}$
+
+$y_{3} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{5}x_{4}^{3} + \beta_{6}x_{4}^{4} + \beta_{7}x_{4}^{5} + \beta_{8}x_{4}^{6} + \beta_{9}x_{4}^{7} + \beta_{10}x_{8}$
+
+With the data inputted, we have
+
+$y_{1} = -42.145 + 0.6875x_{1} + 12.887x_{2} - 4.859x_{4} + 1.275x_{4}^{2} - 0.047x_{4}^{3} + 89.528x_{8}$
+
+$y_{3} = -145.05 + 17.18x_{1} + 88.57x_{2} + 29.45x_{4} - 63.199x_{4}^{2} + 24.27x_{4}^{3} - 3.62x_{4}^{4} + 0.258x_{4}^{5} - 0.0088x_{4}^{6} + 0.000116x_{4}^{7} + 243.131x_{8}$
+
+Note that $\frac{1}{n}\sum_{i=1}^{n} x_{1} = \bar{x_{1}} = 2.50164, \frac{1}{n}\sum_{i=1}^{n} x_{2} = \bar{x_{2}} = 0.5025606, \frac{1}{n}\sum_{i=1}^{n} x_{8} = \bar{x_{8}} = 0.4970$.
+
+
+```{r}
+y1 = svd_solve(design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,3,1))), dataset$casual)
+y3 = svd_solve(design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,7,1))), dataset$cnt)
+
+constant_y1 = y1[1] + mean(dataset$yr)*y1[2] + mean(dataset$season)*y1[3] + mean(dataset$temp)*y1[7]
+
+constant_y3 = y3[1] + mean(dataset$yr)*y3[2] + mean(dataset$season)*y3[3] +
+mean(dataset$temp)*y3[11]
+
+coeff_y1 = y1[4:6]
+
+coeff_y3 = y3[4:10]
+
+polynomial <- function(coefficients, constant = 0, range = seq(0, 23, 0.1)){
+  A = vector(mode = "numeric", length = length(range))
+  for (i in c(1:length(range))){
+    A[i] = constant
+    for (j in c(1:length(coefficients))){
+      A[i] = A[i] + coefficients[j]*range[i]^j
+    }
+  }
+  return(data.frame(range, A))
+}
+
+predicted_casual = polynomial(coeff_y1, constant_y1)
+predicted_cnt = polynomial(coeff_y3, constant_y3)
+predicted_casual = cbind(predicted_casual, "Curve Fit")
+predicted_cnt = cbind(predicted_cnt, "Curve Fit")
+colnames(predicted_casual) = c("hr","x", "q")
+colnames(predicted_cnt) = c("hr", "x", "q")
+real_casual = dataset %>%
+  group_by(hr) %>%
+  summarise(x = quibble(casual, c(0.25,0.5,0.75)))
+real_cnt = dataset %>%
+  group_by(hr) %>%
+  summarise(x = quibble(cnt, c(0.25,0.5,0.75))) 
+
+real_casual$q = paste0(sprintf("%.f", real_casual$x$q*100), "th")
+real_cnt$q = paste0(sprintf("%.f", real_cnt$x$q*100), "th")
+real_casual$x = real_casual$x$x
+real_cnt$x = real_cnt$x$x
+
+casual = rbind(predicted_casual, real_casual)
+cnt = rbind(predicted_cnt, real_cnt)
+
+ggplot(casual, aes(x = hr, y = x, group = q, color = q)) +
+  geom_line()
+
+ggplot(cnt, aes(x = hr, y = x, group = q, color = q)) +
+  geom_line()
+```
+
+
+
+
+
