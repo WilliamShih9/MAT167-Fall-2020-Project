@@ -3,6 +3,8 @@ title: "LeastSquares"
 output:
   pdf_document:
     keep_tex: true
+header-includes:
+- \usepackage[width=\textwidth]{caption}
 ---
 
 ```{r setup, include=FALSE}
@@ -16,7 +18,7 @@ library(scales)
 library(microbenchmark)
 library(Rcpp)
 library(RcppArmadillo)
-dataset = read.csv("hour.csv")
+
 
 
 # There were two files from this dataset. There is the 'hour.csv' and 'day.csv'.
@@ -202,7 +204,28 @@ scientific_to_latex <- function(x, digits = 3){
   x = paste0("$", substr(x, 1, 1+digits), " \\times 10^{", as.numeric(substr(x, stringr::str_length(x)-2, stringr::str_length(x))), "}$")
   return(x)
 }
+
+# Used for curve fitting
+# Coefficients = coeffieints for the polynomial term: The first value is power of one, second value is quadratic, third value is cubic, etc..
+# Constant = constant term added to each polynomial term
+# Range = x values
+polynomial <- function(coefficients, constant = 0, range = seq(0, 23, 0.1)){
+  A = vector(mode = "numeric", length = length(range))
+  for (i in c(1:length(range))){
+    A[i] = constant
+    for (j in c(1:length(coefficients))){
+      A[i] = A[i] + coefficients[j]*range[i]^j
+    }
+  }
+  return(data.frame(range, A))
+}
+
+# End List of Functions
+
+# 1. Introduction
 ```
+
+
 
 # 1. Introduction
 
@@ -213,6 +236,8 @@ The
 for this project is the "Bike Sharing Dataset Data Set" found in the UCI Machine Learning Repository. The dataset contains hourly count of rental bikes for all of 2011 and 2012 (January 1, 2011 to December 31, 2012) in the Capital Bikeshare System of Washington D.C. area (Washington-Arlington-Alexandria, DC-VA-MD-WV metropolitan area). The UCI Machine Learning Repository cites Hadi Fanaee-T from the "Laboratory of Artificial Intelligence and Decision Support (LIAAD), University of Porto" for the compilation of the data.
 
 The dataset is outdated since data is actually available up to November 2020 on Capital Bikeshare's website (as of December 18, 2020), but this limited dataset will still work for the purposes of demonstrating linear algebra on a real world dataset.
+
+There are two files included in the dataset: a `hour.csv` and a `day.csv`. We will use the `hour.csv` for the regression, since the `day.csv` is simply just a sumamry of the `hour.csv` file. We also made a function that easily converts the `hour.csv` to the `day.csv` called `convert_hour_to_day()`.
 
 There are 14 different variables that are in this dataset that are potentially of interest. Two variables are not useful and immediately thrown out: `instant` (this is simply the row number of the dataset) and `dteday` (date of the year).
 
@@ -236,13 +261,18 @@ $x_{6}$: `weekday` (0 to 6)
 
 $x_{7}$: `workingday` (1 if weekday and not holiday, 0 otherwise)
 
-$x_{8}$: `temp` (0-1, normalized temperature in Celsius. Divided by 41)
+$x_{8}$: `weathersit`:  Weather conditions (1: Clear, Few clouds, Partly cloudy, Partly cloudy,
+ 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist,
+ 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds, 
+ 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog)
 
-$x_{9}$: `atemp` (0-1, normalized "feels like" temperature in Celsius. Divided by 50)
+$x_{9}$: `temp` (0-1, normalized temperature in Celsius. Divided by 41)
 
-$x_{10}$: `hum` (percent humidity)
+$x_{10}$: `atemp` (0-1, normalized "feels like" temperature in Celsius. Divided by 50)
 
-$x_{11}$: `windspeed` (0-1, Normalized wind speed. Divided by 67)
+$x_{11}$: `hum` (percent humidity)
+
+$x_{12}$: `windspeed` (0-1, Normalized wind speed. Divided by 67)
 
 $y_{1}$: `casual` (count of casual users)
 
@@ -250,42 +280,93 @@ $y_{2}$: `registered` (count of registered users)
 
 $y_{3}$: `cnt` (count of sum of casual and registered users)
 
-The following least squares regression exercise will try to predict the `casual`, `registered`, or `cnt` as a function of the independent variables.
+The following least squares regression exercise will try to predict the `casual`, `registered`, or `cnt` as a function of the independent variables. Also, we will try some principal components analysis (PCA) and k-nearest neighbors (kNN) with these variables.
 
 ## Data Analysis
 
 Preliminary data analysis shows that the `hour` is by far the most important independent variable for explaining the variation in the dependent variables. Thus, it is important to know how exactly the `hour` variable interacts with `registered`, `casual`, and `cnt`. 
 
-Although there are three different dependent variables, 
+We also found that it makes sense to treat `hour` as a categorical variable (treat `hour` as 23 independent dummy variables (0 or 1 for each variable), one for each hour minus the constant term), but in this case, we will try to fit `hour` in terms of a polynomial curve to demonstrate polynomial fitting with linear algebra.
 
-It could sense to treat `hour` as a categorical variable (treat `hour` as 23 independent variables, one for each hour minus the constant term), but in this case, we will try to fit `hour` in terms of a polynomial curve. 
+A plot of `hour` on the x-axis and `registered` or `casual` on the y-axis would us some insight of what degree polynomial for `hour` we should be looking for.
 
+```{r, echo = FALSE, message = FALSE, fig.cap = "Boxplot of registered users for Jan 1, 2011 to December 31, 2011 for each hour of day. The low whisker represents 10th percentile, the box represents the interquartile range, the top whisker represents the 90th percentile. For example, with 731 days in the datset, the low whisker represents the 73rd lowest value.",  fig.width = 8, fig.height = 4}
+dataset = read.csv("hour.csv")
 
-```{r, echo = FALSE, message = FALSE, fig.cap = "Boxplot of registered users for Jan 1, 2011 to December 31, 2011 for each hour of day. The low whisker represents 10th percentile, the box represents the interquartile range, the top whisker represents the 90th percentile"}
+#Figure 1
 plot_by_hour(dataset, "registered")
 ```
 
-```{r, echo = FALSE, message = FALSE, fig.cap = "Boxplot of casual users for Jan 1, 2011 to December 31, 2011 for each hour of day. The low whisker represents 10th percentile, the box represents the interquartile range, the top whisker represents the 90th percentile"}
+**Figure 1** for the number of registered users show a trimodal distribution with three peaks throughout the day. A possible interpretation of the three peaks is that there is an early peak for the morning commute, a central peak for lunchtime, and a late peak for the evening commute. This suggests that we need a high-degree polynomial to accurately the number of registered users throughout the day. A six-degree polynomial is the minimum degree that can represent a trimodal distribution.
+
+\newpage
+
+
+```{r, echo = FALSE, message = FALSE, fig.cap = "Boxplot of casual users for Jan 1, 2011 to December 31, 2011 for each hour of day. The low whisker represents 10th percentile, the box represents the interquartile range, the top whisker represents the 90th percentile. For example, with 731 days in the datset, the low whisker represents the 73rd lowest value.",  fig.width = 8, fig.height = 4}
+
+# Figure 2
 plot_by_hour(dataset, "casual")
 ```
 
 
-```{r, echo = FALSE, message = FALSE, fig.cap = "Number of casual, registered, and sum of casual and registered for all 731 days in the dataset"}
+**Figure 2** for the number of casual users show a single peak distribution. A possible interpretation of this is that casual users are tourists that don't commute. Tourists are not up early in the morning and most things to do for tourists occur in the afternoon. Thus, the peak occurs at around 12 PM-6 PM. A two-degree polynomial is potentially sufficient to represent the number of casual users throughout the day.
+
+**Figure 1** and **Figure 2** show significant variation so that it is clear that the hour of the day is not the only variable influencing how many users there are for this bike sharing system. We can plot at the number of users for each day for further information. 
+
+```{r, echo = FALSE, message = FALSE, fig.cap = "Number of casual, registered, and sum of casual and registered for all 731 days in the dataset", fig.width = 8, fig.height = 4}
 day = convert_hour_to_day(dataset)
+
+# Figure 3
 plot_by_day(day, c("casual","registered","cnt"))
 ```
 
+**Figure 3** shows both variation through the year and an increase in number of users from 2011 to 2012. This makes sense if this Capital Bike-Sharing was still a developing system in 2011 and not yet a mature system where the market is already saturated. Thus, we want to include a variable in our least squares regression model that includes controls for seasonal variation and the year. This would be `season` and `yr` from the list of $x_{n}$. It turns out that the `weekday` (day of the week) and `mnth` (month of the year) do not explain a large additional amount of variation, so they won't be included in the model.
 
-```{r, echo = FALSE, message = FALSE, fig.pos = "!h", fig.cap = 'Normalized temperature and "feels like" temperature for all 731 days in the datset'}
+But **Figure 3** still shows quite a bit of variation day to day within each season. There are quite a few weather related variables in the list of independent variables in the dataset, which would account for some of the remaining variation. 
+
+
+```{r, echo = FALSE, message = FALSE, fig.pos = "!h", fig.cap = 'Normalized temperature and "feels like" temperature for all 731 days in the datset',  fig.width = 8, fig.height = 4}
+
+# Figure 4
 plot_by_day(day, c("temp","atemp"))
 ```
+
+**Figure 4** shows the average `temp` (actual temperature) and `atemp` ("feels like" temperature) for each day of the year. A comparison of **Figure 3** and **Figure 4** shows that temperature shows a strong negative relationship with the number of bike-sharing users, which makes sense. People do not want to bike when it is cold outside.
+These variables have a very high correlation with each other such that we found it to be sufficient to just add `temp`. In fact, `temp` is good enough to explain most of the weather-related variation and other variables such as `wind` (wind speed) and `hum` (humidity) are not necessary.
+
+
+Thus, we choose just `season`, `yr`, `hr`, and `temp` as the independent variables and omit the rest of the variables for the least squares regression model. These are $x_{1}, x_{2}, x_{4}$, and $x_{9}$.
 
 \newpage
 
 # 2. Design Matrix
 
+The design matrix $A$ is the matrix that will be used to solve the equation $Ax = b$, where $x$ are the coefficients, often referred to as the $\beta$'s and $b$ is the dependent variable. It is the matrix of the explanatory/independent variables.
+
+The design matrix $A$ will be of $\mathbb{R}^{17379 \times (n+4)}$, (where n is the maximum degree of the polynomial for $x_{4}$/`hour`) since there are 17,379 rows (one for each hour in the dataset) and there are four variables other than the $x_{4}$/`hour` variable. The other four variables are the constant term, $x_{1}$ (`season`), $x_{2}$ (`yr`), and $x_{9}$ (`temp`).
+
+The following will be the form of our design matrix $A \in \mathbb{R}^{17379 \times (n+4)}$ (Note that $m$ is left the matrix for simplification, but the of $m = 17379$):
+
+\[
+A=
+  \begin{bmatrix}
+    1 & x_{11} & x_{12} & x_{14} & x_{14}^{2} & \dots & x_{14}^{n} & x_{19} \\
+    1 & x_{21} & x_{22} & x_{24} & x_{24}^{2} & \dots & x_{24}^{n} & x_{29} \\
+    1 & x_{31} & x_{32} & x_{34} & x_{34}^{2} & \dots & x_{34}^{n} & x_{39} \\
+    \vdots & \vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots & \\
+    1 & x_{m1} & x_{m2} & x_{m4} & x_{m4}^{2} & \dots & x_{m4}^{n} & x_{m9} \\
+  \end{bmatrix}
+\]
+
+Now the question remaining is the appropriate value of $n$. We know that the answer depends on which dependent variable we are using. If $b$ is 
+
 
 ```{r, message = FALSE, echo = FALSE}
+
+#2. Design Matrix 
+
+# This is calculating R-squared of regression models 
+
 Rsq_cnt = sapply(1:15, function(x) {
   summary(lm(dataset$cnt ~ design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,x,1)))))$r.squared
 })
@@ -304,21 +385,21 @@ condition = sapply(1:15, function(x) {
 
 frame = cbind(Rsq_cnt, Rsq_casual, Rsq_registered)
 
-hs = c("$h$",
-  "$h+h^{2}$",
-  "$h+h^{2}+h^{3}$",
-  "$h+h^{2}+\\dots+h^{4}$",
-  "$h+h^{2}+\\dots+h^{5}$",
-  "$h+h^{2}+\\dots+h^{6}$",  
-  "$h+h^{2}+\\dots+h^{7}$",  
-  "$h+h^{2}+\\dots+h^{8}$",  
-  "$h+h^{2}+\\dots+h^{9}$",  
-  "$h+h^{2}+\\dots+h^{10}$",  
-  "$h+h^{2}+\\dots+h^{11}$",  
-  "$h+h^{2}+\\dots+h^{12}$", 
-  "$h+h^{2}+\\dots+h^{13}$",  
-  "$h+h^{2}+\\dots+h^{14}$",
-  "$h+h^{2}+\\dots+h^{15}$"
+hs = c("$x_{4}$",
+  "$x_{4}+x_{4}^{2}$",
+  "$x_{4}+x_{4}^{2}+x_{4}^{3}$",
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{4}$",
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{5}$",
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{6}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{7}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{8}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{9}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{10}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{11}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{12}$", 
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{13}$",  
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{14}$",
+  "$x_{4}+x_{4}^{2}+\\dots+x_{4}^{15}$"
 )
 rownames(frame) = hs
 
@@ -327,20 +408,23 @@ frame[,1:3] = round(frame[,1:3], digits = 3)
 
 colnames(frame) = c("$R^{2}_{cnt}$", "$R^{2}_{casual}$", "$R^{2}_{registered}$")
 
-knitr::kable(frame, digits = 3, caption = "R-squared values of y", escape = FALSE)
+# Table 1
+knitr::kable(frame, digits = 3, caption = "R-squared values for linear regression of each of value of $n$, maximum power of polynomial for `hour`", escape = FALSE)
 ```
 
 
 
 ```{r, message = FALSE, echo = FALSE}
+
+# Comparing speed of custom design_matrix function versus built in mode.matrix.lm function
 Compare = microbenchmark("design_matrix()" = {S = design_matrix(dataset, c("yr","season","hr","temp"), c(1,1,7,1))},
                        "design_matrix_Cpp()" = {S = design_matrix_Cpp(dataset, c("yr","season","hr","temp"),
                                                                   as.integer(c(1,1,7,1)))},
-                       "mode.matrix.lm()" = 
+                       "model.matrix.lm()" = 
                          {S = model.matrix(~yr+mnth+hr+I(hr^2)+I(hr^3)+I(hr^4)+I(hr^5)+I(hr^6)+I(hr^7)+temp,
                                                           data = dataset)},
                        times = 100)
-knitr::kable(summary(Compare), digits = 3, caption = "", escape = FALSE)
+knitr::kable(summary(Compare), digits = 3, caption = "Comparison of speed (in milliseconds) of custom design_matrix() functions with built-in R model.matrix.lm() function", escape = FALSE)
 
 ```
 
@@ -349,6 +433,8 @@ knitr::kable(summary(Compare), digits = 3, caption = "", escape = FALSE)
 # 3. Normal Equation
 
 ```{r, message = FALSE, echo = FALSE}
+
+#3. Normal Equations
 A = design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,3,1)))
 ```
 
@@ -378,9 +464,10 @@ frame = cbind(column1, column2, column3d)
 
 colnames(frame) = c("$\\kappa(A)$", "$\\kappa(A)^{2}$", "Relative error/error message")
 
+# Table 2
 rownames(frame) = hs
 
-knitr::kable(frame, escape = FALSE, caption = "")
+knitr::kable(frame, escape = FALSE, caption = "Condition number of each value of $n$ (maximum power of polynomial for `hour`) and relative error of normal equations versus SVD")
 ```
 
 
@@ -389,19 +476,20 @@ knitr::kable(frame, escape = FALSE, caption = "")
 Compare2 = microbenchmark("normal_equations(A, b)" = {S = normal_equations(A, b)},
                        "normal_equations_Cpp(A, b)" = {S = normal_equations_Cpp(A, b)},
                         times = 100)
-
-knitr::kable(summary(Compare2), digits = 3, caption = "")
+# Table 3
+knitr::kable(summary(Compare2), digits = 3, caption = "Comparison of speed (in milliseconds) of solving $Ax = b$ where $A \\in \\mathbb{R}^{17379 \\times 7}$ using normal equations implemented in R vs Rcpp (C++)")
 ```
 
 # 4. QR Decomposition
 
 ```{r, message = FALSE, echo = FALSE, message = FALSE}
+#QR decomposition
 
 Compare3 = microbenchmark("qr.solve(A, b)" = {S = qr.solve(A, b)},
                        "qr_solve_Cpp(A, b)" = {S = qr_solve_Cpp(A, b)},
                         times = 100)
-
-knitr::kable(summary(Compare3), digits = 3, caption = "")
+# Table 4
+knitr::kable(summary(Compare3), digits = 3, caption = "Comparison of speed (in milliseconds) of solving $Ax = b$ where $A \\in \\mathbb{R}^{17379 \\times 7}$ using QR decomposition implemented in R vs Rcpp (C++)")
 
 ```
 
@@ -410,11 +498,12 @@ knitr::kable(summary(Compare3), digits = 3, caption = "")
 # 5. Singular Value Decomposition
 
 ```{r, message = FALSE, echo = FALSE}
+#5. Singular Value Decomposition
 Compare4 = microbenchmark("svd_solve(A, b)" = {S = svd_solve(A, b)},
                        "svd_solve_Cpp(A, b)" = {S = svd_solve_Cpp(A, b)},
                         times = 100)
-
-knitr::kable(summary(Compare4), digits = 3, caption = "")
+# Table 5
+knitr::kable(summary(Compare4), digits = 3, caption = "Comparison of speed (in milliseconds) of solving $Ax = b$ where $A \\in \\mathbb{R}^{17379 \\times 7}$ using SVD implemented in R vs Rcpp (C++)")
 
 ```
 
@@ -429,8 +518,8 @@ Result = microbenchmark("normal_equations(A, b)" = {S = normal_equations(A, data
                        times = 100)
 
 b = dataset$cnt
-
-knitr::kable(summary(Result), digits = 3, caption = "")
+# Table 6
+knitr::kable(summary(Result), digits = 3, caption = "Comparison of speed (in milliseconds) of solving $Ax = b$ where $A \\in \\mathbb{R}^{17379 \\times 7}$ using normal equations, QR decomposition, and SVD implemented in R vs Rcpp (C++)")
 ```
 
 
@@ -442,26 +531,28 @@ Result2 = microbenchmark("qr.solve(A, b)" = {S = qr.solve(A, dataset$cnt)},
                        "svd_solve(A, b)" = {S = svd_solve(A, dataset$cnt)},
                        "svd_solve_Cpp(A,b)" = {S = svd_solve_Cpp(A, b)},
                        times = 100)
-knitr::kable(summary(Result2), digits = 3, caption = "")
+# Table 7
+knitr::kable(summary(Result2), digits = 3, caption = "Comparison of speed (in milliseconds) of solving $Ax = b$ where $A \\in \\mathbb{R}^{17379 \\times 11}$ using QR decomposition or SVD implemented in R vs Rcpp (C++)")
 
 ```
 
 # 6. Final Regression Model
 
-$y_{1} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{4}x_{4}^{3} + \beta_{5}x_{9}$
+$y_{1} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{5}x_{4}^{3} + \beta_{6}x_{9}$
 
-$y_{3} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{5}x_{4}^{3} + \beta_{6}x_{4}^{4} + \beta_{7}x_{4}^{5} + \beta_{8}x_{4}^{6} + \beta_{9}x_{4}^{7} + \beta_{10}x_{8}$
+$y_{3} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{5}x_{4}^{3} + \beta_{6}x_{4}^{4} + \beta_{7}x_{4}^{5} + \beta_{8}x_{4}^{6} + \beta_{9}x_{4}^{7} + \beta_{10}x_{9}$
 
-With the data inputted, we have
+With the data inputed, we have
 
-$y_{1} = -42.145 + 0.6875x_{1} + 12.887x_{2} - 4.859x_{4} + 1.275x_{4}^{2} - 0.047x_{4}^{3} + 89.528x_{8}$
+$y_{1} = -42.145 + 0.6875x_{1} + 12.887x_{2} - 4.859x_{4} + 1.275x_{4}^{2} - 0.047x_{4}^{3} + 89.528x_{9}$
 
-$y_{3} = -145.05 + 17.18x_{1} + 88.57x_{2} + 29.45x_{4} - 63.199x_{4}^{2} + 24.27x_{4}^{3} - 3.62x_{4}^{4} + 0.258x_{4}^{5} - 0.0088x_{4}^{6} + 0.000116x_{4}^{7} + 243.131x_{8}$
+$y_{3} = -145.05 + 17.18x_{1} + 88.57x_{2} + 29.45x_{4} - 63.199x_{4}^{2} + 24.27x_{4}^{3} - 3.62x_{4}^{4} + 0.258x_{4}^{5} - 0.0088x_{4}^{6} + 0.000116x_{4}^{7} + 243.131x_{9}$
 
 Note that $\frac{1}{n}\sum_{i=1}^{n} x_{1} = \bar{x_{1}} = 2.50164, \frac{1}{n}\sum_{i=1}^{n} x_{2} = \bar{x_{2}} = 0.5025606, \frac{1}{n}\sum_{i=1}^{n} x_{8} = \bar{x_{8}} = 0.4970$.
 
 
-```{r}
+```{r, echo = FALSE, message = FALSE, fig.cap = "A"}
+# 6. Final Regression Model
 y1 = svd_solve(design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,3,1))), dataset$casual)
 y3 = svd_solve(design_matrix_Cpp(dataset, c("yr","season","hr","temp"), as.integer(c(1,1,7,1))), dataset$cnt)
 
@@ -473,17 +564,6 @@ mean(dataset$temp)*y3[11]
 coeff_y1 = y1[4:6]
 
 coeff_y3 = y3[4:10]
-
-polynomial <- function(coefficients, constant = 0, range = seq(0, 23, 0.1)){
-  A = vector(mode = "numeric", length = length(range))
-  for (i in c(1:length(range))){
-    A[i] = constant
-    for (j in c(1:length(coefficients))){
-      A[i] = A[i] + coefficients[j]*range[i]^j
-    }
-  }
-  return(data.frame(range, A))
-}
 
 predicted_casual = polynomial(coeff_y1, constant_y1)
 predicted_cnt = polynomial(coeff_y3, constant_y3)
@@ -506,11 +586,28 @@ real_cnt$x = real_cnt$x$x
 casual = rbind(predicted_casual, real_casual)
 cnt = rbind(predicted_cnt, real_cnt)
 
+#Figure 5
 ggplot(casual, aes(x = hr, y = x, group = q, color = q)) +
-  geom_line()
+  geom_line() +
+  xlab("Hour") +
+  ylab("Number of casual users") +
+  ggtitle("A") +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 2)) +
+  theme_bw()
+```
 
+
+
+
+```{r, echo = FALSE, message = FALSE, fig.cap = "A"}
+#Figure 6
 ggplot(cnt, aes(x = hr, y = x, group = q, color = q)) +
-  geom_line()
+  geom_line() +
+  xlab("Hour") +
+  ylab("Number of casual+registered users") +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 2)) +
+  ggtitle("A") +
+  theme_bw()
 ```
 
 
