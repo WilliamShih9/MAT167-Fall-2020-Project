@@ -68,6 +68,7 @@
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \setcounter{secnumdepth}{-\maxdimen} % remove section numbering
 \usepackage[width=\textwidth]{caption}
+\setcounter{MaxMatrixCols}{20}
 
 \title{LeastSquares}
 \author{}
@@ -75,6 +76,8 @@
 
 \begin{document}
 \maketitle
+
+\newpage
 
 \hypertarget{introduction}{%
 \section{1. Introduction}\label{introduction}}
@@ -195,8 +198,6 @@ accurately the number of registered users throughout the day. A
 six-degree polynomial is the minimum degree that can represent a
 trimodal distribution.
 
-\newpage
-
 \begin{figure}
 \centering
 \includegraphics{LeastSquares_files/figure-latex/unnamed-chunk-2-1.pdf}
@@ -208,11 +209,12 @@ whisker represents the 73rd lowest value.}
 \end{figure}
 
 \textbf{Figure 2} for the number of casual users show a single peak
-distribution. A possible interpretation of this is that casual users are
-tourists that don't commute. Tourists are not up early in the morning
-and most things to do for tourists occur in the afternoon. Thus, the
-peak occurs at around 12 PM-6 PM. A two-degree polynomial is potentially
-sufficient to represent the number of casual users throughout the day.
+distribution. A possible reason for this is that casual users are
+tourists that don't commute. Tourists also don't wake up early in the
+morning and most things to do for tourists occur in the afternoon and
+evening. Thus, the peak occurs at around 12 PM-6 PM. A two-degree
+polynomial is potentially sufficient to represent the number of casual
+users throughout the day.
 
 \textbf{Figure 1} and \textbf{Figure 2} show significant variation so
 that it is clear that the hour of the day is not the only variable
@@ -241,6 +243,8 @@ But \textbf{Figure 3} still shows quite a bit of variation day to day
 within each season. There are quite a few weather related variables in
 the list of independent variables in the dataset, which would account
 for some of the remaining variation.
+
+\newpage
 
 \begin{figure}
 \centering
@@ -276,12 +280,12 @@ as the \(\beta\)'s and \(b\) is the dependent variable. It is the matrix
 of the explanatory/independent variables.
 
 The design matrix \(A\) will be of \(\mathbb{R}^{17379 \times (n+4)}\),
-(where n is the maximum degree of the polynomial for
-\(x_{4}\)/\texttt{hour}) since there are 17,379 rows (one for each hour
-in the dataset) and there are four variables other than the
-\(x_{4}\)/\texttt{hour} variable. The other four variables are the
-constant term, \(x_{1}\) (\texttt{season}), \(x_{2}\) (\texttt{yr}), and
-\(x_{9}\) (\texttt{temp}).
+(where \(n\) is the maximum degree of the polynomial for \(x_{4}\)
+(\texttt{hour})) since there are 17,379 rows (one for each hour in the
+dataset) and there are four variables other than the \texttt{hour}
+(\(x_{4}\)) variable. The other four variables are the constant term,
+\(x_{1}\) (\texttt{season}), \(x_{2}\) (\texttt{yr}), and \(x_{9}\)
+(\texttt{temp}).
 
 The following will be the form of our design matrix
 \(A \in \mathbb{R}^{17379 \times (n+4)}\) (Note that \(m\) is left the
@@ -293,18 +297,29 @@ A=
     1 & x_{11} & x_{12} & x_{14} & x_{14}^{2} & \dots & x_{14}^{n} & x_{19} \\
     1 & x_{21} & x_{22} & x_{24} & x_{24}^{2} & \dots & x_{24}^{n} & x_{29} \\
     1 & x_{31} & x_{32} & x_{34} & x_{34}^{2} & \dots & x_{34}^{n} & x_{39} \\
-    \vdots & \vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots & \\
+    \vdots & \vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\
     1 & x_{m1} & x_{m2} & x_{m4} & x_{m4}^{2} & \dots & x_{m4}^{n} & x_{m9} \\
-  \end{bmatrix}
+  \end{bmatrix} 
 \]
+
+The first value of the index represents the row number and the second
+value of the index represents the variable number in the matrix. For
+example \(x_{32}\) in the above means the 3rd row of variable \(x_{2}\).
 
 Now the question remaining is the appropriate value of \(n\). We know
 that the answer depends on which dependent variable we are using. If
-\(b\) is
+\(b\) is \texttt{registered} or \texttt{cnt}, the value of \(n\) should
+be higher than if \(b\) is \texttt{casual}. One way to find a good for
+\(n\) is calculate the R-squared for each value of \(n\). The R-squared
+is the proportion of variation in the dependent variable that can be
+explained by the independent variables. A value of \(n\) where \(n+1\)
+does not increase the R-squared significantly further would be a good
+value of \(n\).
 
 \begin{longtable}[]{@{}lrrr@{}}
 \caption{R-squared values for linear regression of each of value of
-\(n\), maximum power of polynomial for \texttt{hour}}\tabularnewline
+\(n\), maximum power of polynomial for \texttt{hour}, including
+\$x\_\{1\}, \(x_{2}\), and \(x_{9}\)}\tabularnewline
 \toprule
 & \(R^{2}_{cnt}\) & \(R^{2}_{casual}\) &
 \(R^{2}_{registered}\)\tabularnewline
@@ -345,6 +360,50 @@ that the answer depends on which dependent variable we are using. If
 \bottomrule
 \end{longtable}
 
+\textbf{Table 1} shows the values of R-squared regressed upon the
+dependent variables \texttt{cnt}, \texttt{casual}, and
+\texttt{registered} for each value of \(n\) for values of 1 to 15. For
+\texttt{cnt} and \texttt{registered}, a good value of \(n\) appears to
+be 7. \(n = 7\) gives a huge increase in R-squared over \(n = 6\) for
+\texttt{cnt} and \texttt{registered}. Only small increases of R-squared
+are seen for values of \(n\) above 7 for \texttt{cnt} and
+\texttt{registered}. Although these increases are still statistically
+significant, it is not a good idea to have very high order polynomials
+as such a regression is likely to overfit the data. For example, very
+high order polynomials may give poor predictions for data in 2013 or
+beyond. For \texttt{casual}, a good value of \(n\) appears to be 3. Only
+small increases of R-squared are seen for values of \(n\) above 3 for
+\texttt{casual}.
+
+Therefore, the design matrix if \(b\) is \texttt{cnt} or
+\texttt{registered} is \(A \in \mathbb{R}^{17379 \times 11}\), where
+\(m = 17379\):
+
+\[
+A=
+  \begin{bmatrix}
+    1 & x_{11} & x_{12} & x_{14} & x_{14}^{2} & x_{14}^{3} & x_{14}^{4} & x_{14}^{5} & x_{14}^{6} & x_{14}^{7} & x_{19} \\
+    1 & x_{21} & x_{22} & x_{24} & x_{24}^{2} & x_{24}^{3} & x_{24}^{4} & x_{24}^{5} & x_{24}^{6} & x_{24}^{7} & x_{29} \\
+    1 & x_{31} & x_{32} & x_{34} & x_{34}^{2} & x_{34}^{3} & x_{34}^{4} & x_{34}^{5} & x_{34}^{6} & x_{34}^{7} & x_{39} \\
+    \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+    1 & x_{m1} & x_{m2} & x_{m4} & x_{m4}^{2} & x_{m4}^{3} & x_{m4}^{4} & x_{m4}^{5} & x_{m4}^{6} & x_{m4}^{7} & x_{m9} \\
+  \end{bmatrix} 
+\]
+
+The design matrix if \(b\) is \texttt{casual} is
+\(A \in \mathbb{R}^{17379 \times 7}\), where \(m = 17379\):
+
+\[
+A=
+  \begin{bmatrix}
+    1 & x_{11} & x_{12} & x_{14} & x_{14}^{2} & x_{14}^{3} & x_{19} \\
+    1 & x_{21} & x_{22} & x_{24} & x_{24}^{2} & x_{24}^{3} & x_{29} \\
+    1 & x_{31} & x_{32} & x_{34} & x_{34}^{2} & x_{34}^{3} & x_{39} \\
+    \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots  \\
+    1 & x_{m1} & x_{m2} & x_{m4} & x_{m4}^{2} & x_{m4}^{3} & x_{m9} \\
+  \end{bmatrix} 
+\]
+
 \begin{longtable}[]{@{}lrrrrrrr@{}}
 \caption{Comparison of speed (in milliseconds) of custom
 design\_matrix() functions with built-in R model.matrix.lm()
@@ -357,17 +416,45 @@ expr & min & lq & mean & median & uq & max & neval\tabularnewline
 expr & min & lq & mean & median & uq & max & neval\tabularnewline
 \midrule
 \endhead
-design\_matrix() & 19.627 & 20.860 & 29.634 & 22.609 & 30.281 & 172.953
+design\_matrix() & 19.583 & 21.756 & 34.720 & 27.329 & 37.945 & 163.543
 & 100\tabularnewline
-design\_matrix\_Cpp() & 7.689 & 8.132 & 10.826 & 8.583 & 10.822 & 30.184
+design\_matrix\_Cpp() & 7.528 & 8.113 & 12.063 & 9.119 & 11.330 & 43.002
 & 100\tabularnewline
-model.matrix.lm() & 19.797 & 22.946 & 32.592 & 28.127 & 32.765 & 217.489
+model.matrix.lm() & 19.591 & 23.590 & 41.094 & 31.195 & 41.902 & 243.177
 & 100\tabularnewline
 \bottomrule
 \end{longtable}
 
+We made a custom function called \texttt{design\_matrix()} in R and a
+Rcpp (C++) version called \texttt{design\_matrix\_Cpp()} to form the
+design matrix. \color{blue}
+\href{https://teuder.github.io/rcpp4everyone_en/index.html}{This Rcpp tutorial}
+\color{black} was useful in converting the R functions to C++. The R
+implementation was slightly faster than the base built-in R version
+called \texttt{model.matrix.lm()} and the C++ version was three times
+faster than built-in R version. \textbf{Table 2} shows a speed
+comparison using R package \texttt{microbenchmark} showing minimum, 25th
+percentile, 50th percentile, mean, 75th percentile, and max time of 100
+replications of the function to form the design matrix with \(n\) = 7
+and \(A \in \mathbb{R}^{17379 \times 11}\).
+
 \hypertarget{normal-equation}{%
 \section{3. Normal Equation}\label{normal-equation}}
+
+The simplest way to solve \(Ax = b\) would be to do use the normal
+equations.
+
+The solution to \(Ax = b\) using the normal equations is
+\(x = (A^{T}A)^{-1}A^{T}b\)
+
+However, computers cannot represent real numbers exactly. The condition
+number \(\kappa(A)\) of the input matrix \(A\) represents how much error
+there could be in the output. The condition number of \(A^{T}A\) is
+equal to condition number of \(A^{2}\). For our example, as \(n\)
+increases (a more complex and higher order polynomial), the condition
+number \(\kappa(A)\) increases significantly. If the condition number is
+too high, then a computer will treat a non-singular matrix as singular.
+Then, there will be very large errors in the computation.
 
 \begin{longtable}[]{@{}llll@{}}
 \caption{Condition number of each value of \(n\) (maximum power of
@@ -377,11 +464,11 @@ versus SVD}\tabularnewline
 \begin{minipage}[b]{0.23\columnwidth}\raggedright
 \strut
 \end{minipage} & \begin{minipage}[b]{0.15\columnwidth}\raggedright
-\(\kappa(A)\)\strut
-\end{minipage} & \begin{minipage}[b]{0.15\columnwidth}\raggedright
 \(\kappa(A)^{2}\)\strut
 \end{minipage} & \begin{minipage}[b]{0.36\columnwidth}\raggedright
-Relative error/error message\strut
+Relative error/error message R\strut
+\end{minipage} & \begin{minipage}[b]{0.15\columnwidth}\raggedright
+Relative error C++\strut
 \end{minipage}\tabularnewline
 \midrule
 \endfirsthead
@@ -389,151 +476,171 @@ Relative error/error message\strut
 \begin{minipage}[b]{0.23\columnwidth}\raggedright
 \strut
 \end{minipage} & \begin{minipage}[b]{0.15\columnwidth}\raggedright
-\(\kappa(A)\)\strut
-\end{minipage} & \begin{minipage}[b]{0.15\columnwidth}\raggedright
 \(\kappa(A)^{2}\)\strut
 \end{minipage} & \begin{minipage}[b]{0.36\columnwidth}\raggedright
-Relative error/error message\strut
+Relative error/error message R\strut
+\end{minipage} & \begin{minipage}[b]{0.15\columnwidth}\raggedright
+Relative error C++\strut
 \end{minipage}\tabularnewline
 \midrule
 \endhead
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(8.05 \times 10^{1}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(6.49 \times 10^{3}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 \(5.87 \times 10^{-12}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(6.17 \times 10^{-12}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(1.45 \times 10^{3}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(2.09 \times 10^{6}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 \(-1.1 \times 10^{-14}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(-1.7 \times 10^{-14}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+x_{4}^{3}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(3.01 \times 10^{4}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(9.08 \times 10^{8}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 \(1.18 \times 10^{-12}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.41 \times 10^{-12}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{4}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(6.46 \times 10^{5}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(4.17 \times 10^{11}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 \(2.87 \times 10^{-12}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(2.71 \times 10^{-12}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{5}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(1.42 \times 10^{7}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(2.03 \times 10^{14}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 \(1.52 \times 10^{-8}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.50 \times 10^{-8}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{6}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(3.59 \times 10^{8}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(1.29 \times 10^{17}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(5.89 \times 10^{-18}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.24 \times 10^{-9}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{7}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(1.06 \times 10^{10}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(1.12 \times 10^{20}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(6.14 \times 10^{-21}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.18 \times 10^{-3}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{8}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(3.33 \times 10^{11}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(1.11 \times 10^{23}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(6.35 \times 10^{-24}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(5.99 \times 10^{-3}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{9}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(1.10 \times 10^{13}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(1.22 \times 10^{26}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(6.78 \times 10^{-27}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.06 \times 10^{-1}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{10}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(3.82 \times 10^{14}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(1.46 \times 10^{29}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(1.29 \times 10^{-29}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.02 \times 10^{1}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{11}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(1.39 \times 10^{16}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(1.94 \times 10^{32}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(1.07 \times 10^{-32}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.06 \times 10^{1}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{12}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(5.38 \times 10^{17}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(2.89 \times 10^{35}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(7.16 \times 10^{-35}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.03 \times 10^{0}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{13}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(2.21 \times 10^{19}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(4.86 \times 10^{38}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(1.13 \times 10^{-37}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(2.12 \times 10^{0}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{14}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(5.86 \times 10^{22}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(3.43 \times 10^{45}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(2.67 \times 10^{-40}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.00 \times 10^{0}\)\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.23\columnwidth}\raggedright
 \(x_{4}+x_{4}^{2}+\dots+x_{4}^{15}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
-\(4.51 \times 10^{22}\)\strut
-\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
 \(2.04 \times 10^{45}\)\strut
 \end{minipage} & \begin{minipage}[t]{0.36\columnwidth}\raggedright
 Error, Recripocal \(\kappa(A)\): \(2.51 \times 10^{-43}\)\strut
+\end{minipage} & \begin{minipage}[t]{0.15\columnwidth}\raggedright
+\(1.09 \times 10^{0}\)\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
+
+\textbf{Table 3} shows the square of the condition number for matrix
+\(A\), the relative error/error message when solving \(Ax = b\) for each
+value of \(n\) using R, and the relative error using Rcpp (C++). The
+relative error is calculated as the maximum error of any coefficient of
+the normal equations when compared to SVD (SVD is considered
+computationally precise).
+
+However, R gives an error trying to find the inverse if the matrix is
+close to singular. The error message is the following: `Error in
+solve.default(t(A) \%*\% A): system is computationally singular:
+reciprocal condition number ='. The reciprocal condition number given in
+the error message by R is close to the conditional number of \(A^{2}\).
+On the other hand, RcppArmadillo does not give an error when finding the
+inverse of a system with a very high condition number. When \(n > 9\)
+and \(\kappa(A^{T}A) > 10^{29}\), the relative error is 100\% or higher.
+R appears to give an error if the relative error is greater than 0.1\%
+and \(\kappa(A^{T}A) > 10^{17}\). With such large errors possible, it is
+not recommended to ever use the normal equations when solving \(Ax = b\)
+on a computer.
 
 \begin{longtable}[]{@{}lrrrrrrr@{}}
 \caption{Comparison of speed (in milliseconds) of solving \(Ax = b\)
@@ -547,15 +654,33 @@ expr & min & lq & mean & median & uq & max & neval\tabularnewline
 expr & min & lq & mean & median & uq & max & neval\tabularnewline
 \midrule
 \endhead
-normal\_equations(A, b) & 5.976 & 6.734 & 8.806 & 7.379 & 9.161 & 31.031
+normal\_equations(A, b) & 6.047 & 6.572 & 9.275 & 7.478 & 9.326 & 28.770
 & 100\tabularnewline
-normal\_equations\_Cpp(A, b) & 4.931 & 5.243 & 6.160 & 5.742 & 6.741 &
-11.054 & 100\tabularnewline
+normal\_equations\_Cpp(A, b) & 2.244 & 2.428 & 2.830 & 2.648 & 3.094 &
+7.003 & 100\tabularnewline
 \bottomrule
 \end{longtable}
 
+\textbf{Table 4} shows that the Rcpp (C++) implementation is on average
+4 times faster than the R implementation of solving the normal
+equations.
+
 \hypertarget{qr-decomposition}{%
 \section{4. QR Decomposition}\label{qr-decomposition}}
+
+Another way, a more computationally accurate way, to solve \(Ax = b\) to
+use QR decomposition.
+
+First, find the reduced QR decomposition such that
+\(A = \hat{Q}\hat{R}\), \(\hat{Q}\) is an orthogonal matrix, and
+\(\hat{R}\) is an upper triangular matrix. \(\hat{Q}\) meets the
+following condition: \(\hat{Q}^{T}\hat{Q} = \hat{Q}\hat{Q}^{T} = I\).
+Also, \(\hat{Q} \in \mathbb{R}^{17379 \times 7}\) and
+\(\hat{R} \in \mathbb{R}^{7 \times 7}\) in this case as
+\(A \in \mathbb{R}^{17379 \times 7}\)
+
+The solution to \(Ax = b\) using QR decomposition is
+\(x = \hat{R}^{-1}\hat{Q}^{T}b\).
 
 \begin{longtable}[]{@{}lrrrrrrr@{}}
 \caption{Comparison of speed (in milliseconds) of solving \(Ax = b\)
@@ -569,16 +694,33 @@ expr & min & lq & mean & median & uq & max & neval\tabularnewline
 expr & min & lq & mean & median & uq & max & neval\tabularnewline
 \midrule
 \endhead
-qr.solve(A, b) & 5.391 & 6.532 & 9.216 & 7.226 & 9.042 & 29.765 &
+qr.solve(A, b) & 5.539 & 6.440 & 9.661 & 7.321 & 9.834 & 32.641 &
 100\tabularnewline
-qr\_solve\_Cpp(A, b) & 5.396 & 5.677 & 6.915 & 6.271 & 7.499 & 14.989 &
+qr\_solve\_Cpp(A, b) & 5.380 & 6.324 & 9.964 & 7.442 & 9.713 & 49.032 &
 100\tabularnewline
 \bottomrule
 \end{longtable}
 
+\textbf{Table 5} shows that the Rcpp (C++) implementation is slightly
+faster than R implementation of using QR decomposition to solve
+\(Ax = b\).
+
 \hypertarget{singular-value-decomposition}{%
 \section{5. Singular Value
 Decomposition}\label{singular-value-decomposition}}
+
+A longer way to solve \(Ax = b\), but an even more accurate way than QR
+decomposition is to use Singular Value Decomposition.
+
+First, find the reduced SVD such that \(A = \hat{U}\hat{\Sigma}V^{T}\).
+
+Also, \(\hat{U} \in \mathbb{R}^{17379 \times 7}\),
+\(V \in \mathbb{R}^{7 \times 7}\), and
+\(\hat{\Sigma} \in \mathbb{R}^{7 \times 7}\) in this case as
+\(A \in \mathbb{R}^{17379 \times 7}\).
+
+The solution to \(Ax = b\) using SVD is
+\(x = V(\hat{U}^{T}b/\hat{\Sigma})\)
 
 \begin{longtable}[]{@{}lrrrrrrr@{}}
 \caption{Comparison of speed (in milliseconds) of solving \(Ax = b\)
@@ -592,39 +734,19 @@ expr & min & lq & mean & median & uq & max & neval\tabularnewline
 expr & min & lq & mean & median & uq & max & neval\tabularnewline
 \midrule
 \endhead
-svd\_solve(A, b) & 9.523 & 11.059 & 13.821 & 12.049 & 14.157 & 38.720 &
+svd\_solve(A, b) & 11.051 & 13.403 & 22.990 & 16.567 & 26.835 & 91.955 &
 100\tabularnewline
-svd\_solve\_Cpp(A, b) & 8.190 & 8.734 & 10.369 & 9.620 & 11.021 & 35.461
-& 100\tabularnewline
+svd\_solve\_Cpp(A, b) & 8.607 & 11.160 & 17.828 & 13.372 & 21.892 &
+45.689 & 100\tabularnewline
 \bottomrule
 \end{longtable}
 
-\begin{longtable}[]{@{}lrrrrrrr@{}}
-\caption{Comparison of speed (in milliseconds) of solving \(Ax = b\)
-where \(A \in \mathbb{R}^{17379 \times 7}\) using normal equations, QR
-decomposition, and SVD implemented in R vs Rcpp (C++)}\tabularnewline
-\toprule
-expr & min & lq & mean & median & uq & max & neval\tabularnewline
-\midrule
-\endfirsthead
-\toprule
-expr & min & lq & mean & median & uq & max & neval\tabularnewline
-\midrule
-\endhead
-normal\_equations(A, b) & 6.058 & 7.092 & 9.496 & 7.808 & 9.591 & 31.948
-& 100\tabularnewline
-normal\_equations\_Cpp(A, b) & 4.906 & 5.231 & 6.371 & 5.875 & 6.940 &
-13.142 & 100\tabularnewline
-qr.solve(A, b) & 5.518 & 6.950 & 12.626 & 8.000 & 10.654 & 235.429 &
-100\tabularnewline
-qr\_solve\_Cpp(A, b) & 5.440 & 5.849 & 7.795 & 6.411 & 7.675 & 73.373 &
-100\tabularnewline
-svd\_solve(A, b) & 9.636 & 12.183 & 16.248 & 14.263 & 18.056 & 66.454 &
-100\tabularnewline
-svd\_solve\_Cpp(A,b) & 8.298 & 9.201 & 11.884 & 10.529 & 12.813 & 57.141
-& 100\tabularnewline
-\bottomrule
-\end{longtable}
+\textbf{Table 6} shows that the Rcpp (C++) implementation is slightly
+faster than R implementation of using SVD to solve \(Ax = b\).
+
+Now, it is time to compare the speed of solving \(Ax = b\). If theory is
+correct, the normal equations should be fastest, followed by QR
+decomposition, and followed by SVD.
 
 \begin{longtable}[]{@{}lrrrrrrr@{}}
 \caption{Comparison of speed (in milliseconds) of solving \(Ax = b\)
@@ -638,25 +760,97 @@ expr & min & lq & mean & median & uq & max & neval\tabularnewline
 expr & min & lq & mean & median & uq & max & neval\tabularnewline
 \midrule
 \endhead
-qr.solve(A, b) & 10.327 & 12.829 & 18.078 & 15.083 & 20.989 & 55.218 &
+normal\_equations\_Cpp(A, b) & 3.990 & 4.554 & 6.474 & 4.898 & 6.479 &
+46.761 & 100\tabularnewline
+qr.solve(A, b) & 10.617 & 12.831 & 23.327 & 17.289 & 23.969 & 253.415 &
 100\tabularnewline
-qr\_solve\_Cpp(A, b) & 11.714 & 12.863 & 16.213 & 14.736 & 17.559 &
-41.542 & 100\tabularnewline
-svd\_solve(A, b) & 20.475 & 25.185 & 33.355 & 30.504 & 37.977 & 78.544 &
-100\tabularnewline
-svd\_solve\_Cpp(A,b) & 17.806 & 19.218 & 24.953 & 20.885 & 23.506 &
-140.779 & 100\tabularnewline
+qr\_solve\_Cpp(A, b) & 12.097 & 13.886 & 21.197 & 16.199 & 23.211 &
+100.417 & 100\tabularnewline
+svd\_solve(A, b) & 20.816 & 25.097 & 40.080 & 31.263 & 40.285 & 139.866
+& 100\tabularnewline
+svd\_solve\_Cpp(A,b) & 18.233 & 21.014 & 31.122 & 25.653 & 33.904 &
+127.162 & 100\tabularnewline
 \bottomrule
 \end{longtable}
 
+Note that \textbf{Table 7} uses \(n=7\), the design matrix for
+\texttt{registered} and \texttt{cnt} instead of \(n=3\), the design
+matrix for \texttt{casual} in \textbf{Table 4, 5, 6}.
+
+Normal equations using Rcpp (C++) is about 3 times faster than QR
+decomposition using C++. QR decomposition is about 70\% faster than SVD.
+QR decomposition implemented in R is about twice as fast as using SVD
+implemented in R. Thus, we see that the results from \textbf{Table 7}
+are in line with what we should expect from theory.
+
 \hypertarget{final-regression-model}{%
 \section{6. Final Regression Model}\label{final-regression-model}}
+
+Recall that \(y_{1}\) = \texttt{casual}, \(y_{3}\) = \texttt{cnt},
+\(x_{1}\) = \texttt{season}, \(x_{2}\) = \texttt{yr}, \(x_{4}\) =
+\texttt{hour}, \(x_{9}\) = \texttt{temp} for below.
 
 \(y_{1} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{5}x_{4}^{3} + \beta_{6}x_{9}\)
 
 \(y_{3} = \beta_{0} + \beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{4} + \beta_{4}x_{4}^{2} + \beta_{5}x_{4}^{3} + \beta_{6}x_{4}^{4} + \beta_{7}x_{4}^{5} + \beta_{8}x_{4}^{6} + \beta_{9}x_{4}^{7} + \beta_{10}x_{9}\)
 
-With the data inputed, we have
+The solution to \(Ax = b\) for \(y_{1}\) is:
+
+\[
+x =
+  \begin{bmatrix}
+    \beta_{0} \\
+     \beta_{1} \\
+    \beta_{2} \\
+     \beta_{3}\\
+     \beta_{4} \\
+    \beta_{5} \\
+    \beta_{6} \\
+  \end{bmatrix} =
+  \begin{bmatrix}
+    -42.145 \\
+    0.6875 \\
+    12.887 \\
+    -4.859 \\
+    1.275 \\
+    -0.047 \\
+    89.528 \\
+  \end{bmatrix}
+\]
+
+The solution to \(Ax = b\) for \(y_{3}\) is:
+
+\[
+x =
+  \begin{bmatrix}
+    \beta_{0} \\
+     \beta_{1} \\
+    \beta_{2} \\
+     \beta_{3}\\
+     \beta_{4} \\
+    \beta_{5} \\
+    \beta_{6} \\
+    \beta_{7}\\
+     \beta_{8} \\
+    \beta_{9} \\
+    \beta_{10} \\
+  \end{bmatrix} =
+  \begin{bmatrix}
+    -145.05 \\
+    17.18 \\
+    88.57 \\
+    29.45 \\
+    -63.199 \\
+    24.27 \\
+    -3.62 \\
+    0.258 \\
+    -0.0088 \\
+    0.000116 \\
+    243.131 \\
+  \end{bmatrix} 
+\]
+
+Inputting the solution results in:
 
 \(y_{1} = -42.145 + 0.6875x_{1} + 12.887x_{2} - 4.859x_{4} + 1.275x_{4}^{2} - 0.047x_{4}^{3} + 89.528x_{9}\)
 
@@ -665,16 +859,56 @@ With the data inputed, we have
 Note that
 \(\frac{1}{n}\sum_{i=1}^{n} x_{1} = \bar{x_{1}} = 2.50164, \frac{1}{n}\sum_{i=1}^{n} x_{2} = \bar{x_{2}} = 0.5025606, \frac{1}{n}\sum_{i=1}^{n} x_{8} = \bar{x_{8}} = 0.4970\).
 
-\begin{figure}
-\centering
-\includegraphics{LeastSquares_files/figure-latex/unnamed-chunk-14-1.pdf}
-\caption{A}
-\end{figure}
+Input the means of \(x_{1}, x_{2}\), and \(x_{8}\) into the formulas of
+\(y_{1}\) and \(y_{3}\).
+
+This results in eliminating all independent variables that aren't
+\texttt{hour} (\(x_{4}\)), resulting in the following two functions:
+
+\(y_{1} = -4.859x_{4} + 1.275x_{4}^{2} -0.047x_{4}^{3} + 10.54523\)
+
+\(y_{3} = 29.45x_{4} - 63.199x_{4}^{2} + 24.27x_{4}^{3} - 3.62x_{4}^{4} + 0.258x_{4}^{5} - 0.0088x_{4}^{6} + 0.000116x_{4}^{7} + 63.26103\).
+
+This now allows us to graph \texttt{casual} (\(y_{1}\)) and
+\texttt{registered} (\(y_{3}\)) as a function of \(x_{4}\)
+(\texttt{hour}) and see how well the least squares regression fits the
+actual data.
+
+\newpage
 
 \begin{figure}
 \centering
-\includegraphics{LeastSquares_files/figure-latex/unnamed-chunk-15-1.pdf}
-\caption{A}
+\includegraphics{LeastSquares_files/figure-latex/unnamed-chunk-12-1.pdf}
+\caption{The 25th, 50th, and 75th percentile of casual users (731 days)
+are graphed for each hour of the day. The mean values of season, yr, and
+temp are entered into the regression solution to give a constant value.
+Thus, the regression is now only in terms of hour. Then, the mean curve
+fit of the regression can be compared to the 25th, 50th, and 75th
+percentiles of casual users.}
 \end{figure}
+
+\textbf{Figure 5} shows that the cubic polynomial function is not a
+great fit for hours 4 to 6 as the mean curve fit is above the 75th
+percentile. The curve does not dip down far enough from hours 4 to 6.
+Note that interquartile range (75th percentile minus 25th percentile)
+for \texttt{casual} is very large from \textbf{Figure 5} which might
+make predicting data quite difficult. Also \textbf{Figure 5} suggests
+that \texttt{casual} is skewed right since the mean curve fit is almost
+always above the 50th percentile.
+
+\newpage
+
+\begin{figure}
+\centering
+\includegraphics{LeastSquares_files/figure-latex/unnamed-chunk-13-1.pdf}
+\caption{Same description as for Figure 5, except the variable is now
+cnt (sum of registered and casual users) rather than casual.}
+\end{figure}
+
+\textbf{Figure 6} shows the 7-degree (septic) polynomial function is
+quite a good fit for \texttt{cnt}. However, near hour 22, the mean curve
+fit starts to slope upwards again, which is not correct. Also, similar
+to \textbf{Figure 5}, the mean curve fit overestimates the number of
+users from hours 4 to 6 again.
 
 \end{document}
