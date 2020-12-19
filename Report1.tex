@@ -1,0 +1,136 @@
+\documentclass{article}\usepackage[]{graphicx}\usepackage[]{color}
+% maxwidth is the original width if it is less than linewidth
+% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
+\newcommand{\hlstr}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
+\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
+\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlstd}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
+\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
+\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
+\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
+\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
+\let\hlipl\hlkwb
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+\usepackage{geometry}
+\usepackage{graphicx}
+\include{dataframes}
+\include{statistics}
+\include{essential}
+\include{algorithms}
+
+\geometry{legalpaper, margin=1.25in}
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+
+\section{Principle Component Analysis}
+Principal Component Analysis (PCA) is a technique used to reduce the dimensionality of a data set. In addition, PCA finds a linear projection of high dimensional data into a lower-dimensional subspace such as the variance retained is maximized and the least-square reconstruction error is minimized. Furthermore, " The PCs are essentially the linear combinations of the original variables, the weights vector in this combination is actually the eigenvector found which in turn satisfies the principle of least squares"(Property Component Analysis Tutorial).
+
+
+
+\begin{table}[h]
+\centering % centering table
+\begin{tabular}{lllllll} 
+\hline\hline %inserting double-line
+Importance of components:                    &                             &                             &                             &                             &                              &                              \\ \hline
+\multicolumn{1}{|l|}{}                       & \multicolumn{1}{l|}{PC1}    & \multicolumn{1}{l|}{PC2}    & \multicolumn{1}{l|}{PC3}    & \multicolumn{1}{l|}{PC4}    & \multicolumn{1}{l|}{PC5}     & \multicolumn{1}{l|}{PC6}     \\ \hline
+\multicolumn{1}{|l|}{Standard deviation}     & \multicolumn{1}{l|}{1.7015} & \multicolumn{1}{l|}{1.1025} & \multicolumn{1}{l|}{0.9219} & \multicolumn{1}{l|}{0.7758} & \multicolumn{1}{l|}{0.65553} & \multicolumn{1}{l|}{0.08902} \\ \hline
+\multicolumn{1}{|l|}{Proportion of Variance} & \multicolumn{1}{l|}{0.4825} & \multicolumn{1}{l|}{0.2026} & \multicolumn{1}{l|}{0.1416} & \multicolumn{1}{l|}{0.1003} & \multicolumn{1}{l|}{0.07162} & \multicolumn{1}{l|}{0.00132} \\ \hline
+\multicolumn{1}{|l|}{Cumulative Proportion}  & \multicolumn{1}{l|}{0.4825} & \multicolumn{1}{l|}{0.6851} & \multicolumn{1}{l|}{0.8267} & \multicolumn{1}{l|}{0.9271} & \multicolumn{1}{l|}{0.99868} & \multicolumn{1}{l|}{1.00000} \\ \hline
+\end{tabular}
+\caption{This table gives the standard deviation, proportion of variance explained by each of the principal component, and the cumulative proportion of variance explained. Also this table was generated with the use of  the “prcomp” function which is used to numerically stable routine that returns a “prcomp object” that contains the square-root of the eigenvalues (sdev), the eigenvectors (rotation), and the scores (x) (More Principle Components).}
+\end{table}
+
+
+
+\begin{figure}[h]
+\includegraphics[scale=0.4]{PCA_Curve.png}
+\caption{This figure showcases how percentage of the variance in the data explained as we add principal components. For example, out PCA1 48 percent of the data set. The PCA2 explains 20 percent and PCA3 explains 14 percent of the data. The total of the 3 components togther 82 percent of the data.}
+\end{figure}
+  
+
+  
+  
+\section{K-Nearest Neighbour}
+K-nearest neighbour (KNN) is a machine learning algorithm. This algoithms can be used for both classification and regression problems. In addition, (KNN) is supervised learning which means that we know the type of data our data is and what outcomes we are looking for. Futhermore, for implementation of the KNN algorithm we will refrence back to the PCA problem and use the 3 components based coordinates and other categorical variables which explain the 82 percent varience to do KNN.
+
+\begin{figure}[h]
+\includegraphics[scale=0.4]{RSME_graph.png}
+\caption{This figure show the average RMSE of the estimated prediction error on a validation set. The value of K for which the RMSE is lowest is the value of K that we will take. So that is K = 9.}
+\end{figure}
+
+\begin{table}[h]
+\begin{tabular}{|llll|}
+\hline
+\multicolumn{4}{|l|}{\textbf{k-Nearest Neighbors}}                                                                                                                                                                                                                                                                                      \\
+\textbf{\begin{tabular}[c]{@{}l@{}}512 samples\\ 10 predictor\end{tabular}}                                                                                                                                                                & \textbf{}                          & \textbf{}                              & \textbf{}    \\
+\textbf{\begin{tabular}[c]{@{}l@{}}No pre-processing\\ Resampling: Cross-Validated (10 fold, repeated 3 times) \\ Summary of sample sizes: 460, 461, 460, 461, 461, 461, ... \\ Resampling results across tuning parameters:\end{tabular}} & \textbf{}                          & \textbf{}                              & \textbf{}    \\ \hline
+\multicolumn{1}{|l|}{\textbf{k}}                                                                                                                                                                                                           & \multicolumn{1}{l|}{\textbf{RMSE}} & \multicolumn{1}{l|}{\textbf{Rsquared}} & \textbf{MAE} \\ \hline
+\multicolumn{1}{|l|}{1}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{925.1560}      & \multicolumn{1}{l|}{0.7839712}         & 690.8140     \\ \hline
+\multicolumn{1}{|l|}{2}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{727.9760}      & \multicolumn{1}{l|}{0.8608545}         & 560.1111     \\ \hline
+\multicolumn{1}{|l|}{3}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{693.0851}      & \multicolumn{1}{l|}{0.8758349}         & 538.5740     \\ \hline
+\multicolumn{1}{|l|}{4}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{670.6142}      & \multicolumn{1}{l|}{0.8858940}         & 526.6748     \\ \hline
+\multicolumn{1}{|l|}{5}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{661.4997}      & \multicolumn{1}{l|}{0.8910960}         & 523.4297     \\ \hline
+\multicolumn{1}{|l|}{6}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{656.4150}      & \multicolumn{1}{l|}{0.8942347}         & 519.3416     \\ \hline
+\multicolumn{1}{|l|}{7}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{656.6373}      & \multicolumn{1}{l|}{0.8953553}         & 522.3512     \\ \hline
+\multicolumn{1}{|l|}{8}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{658.6736}      & \multicolumn{1}{l|}{0.8959119}         & 522.6202     \\ \hline
+\multicolumn{1}{|l|}{9}                                                                                                                                                                                                                    & \multicolumn{1}{l|}{655.1282}      & \multicolumn{1}{l|}{0.8980874}         & 521.0988     \\ \hline
+\multicolumn{1}{|l|}{10}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{657.1985}      & \multicolumn{1}{l|}{0.8981599}         & 524.6721     \\ \hline
+\multicolumn{1}{|l|}{11}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{660.3379}      & \multicolumn{1}{l|}{0.8978063}         & 527.6320     \\ \hline
+\multicolumn{1}{|l|}{12}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{665.1246}      & \multicolumn{1}{l|}{0.8967227}         & 534.0605     \\ \hline
+\multicolumn{1}{|l|}{13}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{668.0968}      & \multicolumn{1}{l|}{0.8965219}         & 536.8265     \\ \hline
+\multicolumn{1}{|l|}{14}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{669.2021}      & \multicolumn{1}{l|}{0.8964224}         & 539.2323     \\ \hline
+\multicolumn{1}{|l|}{15}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{674.8979}      & \multicolumn{1}{l|}{0.8959398}         & 543.9940     \\ \hline
+\multicolumn{1}{|l|}{16}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{675.1185}      & \multicolumn{1}{l|}{0.8968547}         & 546.7142     \\ \hline
+\multicolumn{1}{|l|}{17}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{679.8648}      & \multicolumn{1}{l|}{0.8962774}         & 552.8564     \\ \hline
+\multicolumn{1}{|l|}{18}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{684.0043}      & \multicolumn{1}{l|}{0.8959587}         & 556.5736     \\ \hline
+\multicolumn{1}{|l|}{19}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{694.5197}      & \multicolumn{1}{l|}{0.8933500}         & 565.4170     \\ \hline
+\multicolumn{1}{|l|}{20}                                                                                                                                                                                                                   & \multicolumn{1}{l|}{699.3458}      & \multicolumn{1}{l|}{0.8931800}         & 570.3835     \\ \hline
+\end{tabular}
+\caption{This table here shows a list of RMSE values. The RSME was used to select the optimal model using the smallest value. The final value used for the model was k = 9.}
+\end{table}
+
+
+\begin{figure}[h]
+\includegraphics[scale=0.4]{Predicted_graph.png}
+\caption{This figure show there’s a strong correlation between the model’s predictions and its actual results with our K = 9. With the The $R^2$ = 0.912 being very good since $R^2$ value close to 1 indicated a postive linear assosciation between the predicted vs actual data.}
+\end{figure}
+
+\end{document}
