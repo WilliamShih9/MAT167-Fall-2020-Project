@@ -240,14 +240,14 @@ day = convert_hour_to_day(dataset)
 
 # Figure 3
 plot_by_day(day, c("casual","registered","cnt"))
-Figure3 = plot_by_hour(dataset, "casual")
+Figure3 = plot_by_day(day, c("casual","registered","cnt"))
 
 
 ## ---- echo = FALSE, message = FALSE, fig.pos = "!h", fig.cap = 'Normalized temperature and "feels like" temperature for all 731 days in the datset',  fig.width = 8, fig.height = 4----
 
 # Figure 4
 plot_by_day(day, c("temp","atemp"))
-Figure4 = plot_by_hour(dataset, "casual")
+Figure4 = plot_by_day(day, c("temp","atemp"))
 
 
 ## ---- message = FALSE, echo = FALSE------------------------------------
